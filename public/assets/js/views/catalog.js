@@ -1,3 +1,4 @@
+@'
 // =====================================================
 // views/catalog.js — product catalog + cart drawer
 // =====================================================
@@ -7,13 +8,12 @@ let state = {
   products: [],
   categories: [],
   query: '',
-  catId: 0,        // 0 = all
+  catId: 0,
   clinics: [],
   selectedClinic: 0,
 };
 
 export async function renderCatalog(el, ctx) {
-  // Fetch categories + products + clinics in parallel
   const [cats, prods, clins] = await Promise.all([
     api.get('/categories'),
     api.get('/products'),
@@ -60,7 +60,7 @@ export async function renderCatalog(el, ctx) {
     state.selectedClinic = Number(e.target.value);
   });
 
-  ctx.cart.on(() => paint());  // Re-paint when cart changes (badges)
+  ctx.cart.on(() => paint());
   paint();
 
   function renderCatChips() {
@@ -73,7 +73,7 @@ export async function renderCatalog(el, ctx) {
 
   function paint() {
     const grid = el.querySelector('#productGrid');
-    const inCart = new Set(ctx.cart.items.map(i => i.productId));
+    if (!grid) return;
     const filtered = state.products.filter(p => {
       if (state.catId > 0 && p.category_id !== state.catId) return false;
       if (state.query && !(p.name.toLowerCase().includes(state.query) || p.code.toLowerCase().includes(state.query))) return false;
@@ -118,18 +118,10 @@ export function mountCart(ctx) {
     return;
   }
 
-  fab.addEventListener('click', () => {
-    drawer.hidden = false;
-    paint();
-  });
-  close.addEventListener('click', () => {
-    drawer.hidden = true;
-  });
+  fab.addEventListener('click', () => { drawer.hidden = false; paint(); });
+  close.addEventListener('click', () => { drawer.hidden = true; });
 
-  // Repaint on every cart change (cheap; ~1ms)
   ctx.cart.on(() => paint());
-
-  // Initial paint
   paint();
 
   function paint() {
@@ -167,7 +159,6 @@ export function mountCart(ctx) {
           <span><input id="discountInput" type="number" min="0" step="0.01" value="0" style="width:90px; padding:4px 8px; text-align:right"></span>
         </div>
         <div class="cart-row total"><span>Total</span><span id="totalOut">${ctx.fmt.rm(ctx.cart.subtotal())}</span></div>
-
         <div style="margin-top:14px; display:grid; gap:10px">
           <label><span>Document type</span>
             <select id="docType">
@@ -181,7 +172,6 @@ export function mountCart(ctx) {
             </label>
           </div>
         </div>
-
         <div class="btn-row" style="margin-top:14px">
           <button class="btn-primary" id="submitDoc" style="flex:1">Create document</button>
           <button class="btn-ghost" id="clearCart">Clear</button>
@@ -189,7 +179,6 @@ export function mountCart(ctx) {
       </div>
     `;
 
-    // Wire up controls
     body.querySelectorAll('.cart-item').forEach(node => {
       const id = Number(node.dataset.id);
       node.querySelector('.remove').addEventListener('click', () => ctx.cart.remove(id));
@@ -206,15 +195,15 @@ export function mountCart(ctx) {
     const totalEl = body.querySelector('#totalOut');
     if (discIn && totalEl) {
       discIn.addEventListener('input', () => {
-        const sub  = ctx.cart.subtotal();
+        const sub = ctx.cart.subtotal();
         const disc = Math.max(0, Number(discIn.value) || 0);
         totalEl.textContent = ctx.fmt.rm(Math.max(0, sub - disc));
       });
     }
 
-    const docType = body.querySelector('#docType');
-    if (docType) {
-      docType.addEventListener('change', e => {
+    const docTypeSel = body.querySelector('#docType');
+    if (docTypeSel) {
+      docTypeSel.addEventListener('change', e => {
         body.querySelector('#paymentBox').hidden = e.target.value !== 'receipt';
       });
     }
@@ -242,18 +231,17 @@ export function mountCart(ctx) {
             return;
           }
           const payload = {
-            doc_type:  dt,
+            doc_type: dt,
             clinic_id: clinicId,
-            doc_date:  today,
-            discount:  Math.max(0, Number(discIn.value) || 0),
+            doc_date: today,
+            discount: Math.max(0, Number(discIn.value) || 0),
             payment_method: dt === 'receipt' ? payment : '',
-            paid_at:   dt === 'receipt' ? today : null,
-            notes:     '',
+            paid_at: dt === 'receipt' ? today : null,
+            notes: '',
             items: ctx.cart.items.map(i => ({
               product_id: i.productId, qty: i.qty, patient_name: i.patient,
             })),
           };
-          const { api } = await import('../api.js');
           const res = await api.post('/invoices', payload);
           ctx.toast(`${dt === 'invoice' ? 'Invoice' : 'Receipt'} created`, 'success');
           ctx.cart.clear();
@@ -276,3 +264,7 @@ function escapeHtml(s) {
   }[c]));
 }
 function escapeAttr(s) { return escapeHtml(s).replaceAll('"', '&quot;'); }
+'@ | Set-Content -Path 'public/assets/js/views/catalog.js' -Encoding UTF8
+
+Write-Host "File written. Verifying..."
+Select-String -Path 'public/assets/js/views/catalog.js' -Pattern 'required elements missing'
