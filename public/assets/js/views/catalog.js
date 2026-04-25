@@ -113,38 +113,54 @@ export function mountCart(ctx) {
   const fab    = document.getElementById('cartFab');
   const close  = document.getElementById('cartClose');
 
-  fab.addEventListener('click', () => { drawer.hidden = false; paint(); });
-  close.addEventListener('click', () => { drawer.hidden = true; });
+  if (!drawer || !body || !fab || !close) {
+    console.error('mountCart: required elements missing', { drawer, body, fab, close });
+    return;
+  }
 
-  ctx.cart.on(() => { if (!drawer.hidden) paint(); });
+  fab.addEventListener('click', () => {
+    drawer.hidden = false;
+    paint();
+  });
+  close.addEventListener('click', () => {
+    drawer.hidden = true;
+  });
+
+  // Repaint on every cart change (cheap; ~1ms)
+  ctx.cart.on(() => paint());
+
+  // Initial paint
+  paint();
 
   function paint() {
-    if (ctx.cart.items.length === 0) {
-      body.innerHTML = `<div class="empty"><h3>Cart is empty</h3><p>Tap a product to add it.</p></div>`;
+    if (!ctx.cart.items || ctx.cart.items.length === 0) {
+      body.innerHTML = '<div class="empty"><h3>Cart is empty</h3><p>Tap a product to add it.</p></div>';
       return;
     }
-    body.innerHTML = `
-      ${ctx.cart.items.map(it => `
-        <div class="cart-item" data-id="${it.productId}">
-          <div class="cart-item-head">
-            <div>
-              <div class="cart-item-name">${escapeHtml(it.name)}</div>
-              <div class="muted" style="font-size:.78rem">${escapeHtml(it.code)} · ${ctx.fmt.rm(it.price)} ea</div>
-            </div>
-            <button class="btn-ghost remove" title="Remove">×</button>
-          </div>
-          <div class="cart-item-qty">
-            <button class="qty-btn" data-act="dec">−</button>
-            <span style="min-width:28px; text-align:center; font-weight:600">${it.qty}</span>
-            <button class="qty-btn" data-act="inc">+</button>
-            <span style="margin-left:auto; font-weight:600">${ctx.fmt.rm(it.qty * it.price)}</span>
-          </div>
-          <div class="cart-item-patient">
-            <input placeholder="Patient name (optional)" value="${escapeAttr(it.patient)}">
-          </div>
-        </div>
-      `).join('')}
 
+    const itemsHtml = ctx.cart.items.map(it => `
+      <div class="cart-item" data-id="${it.productId}">
+        <div class="cart-item-head">
+          <div>
+            <div class="cart-item-name">${escapeHtml(it.name)}</div>
+            <div class="muted" style="font-size:.78rem">${escapeHtml(it.code)} · ${ctx.fmt.rm(it.price)} ea</div>
+          </div>
+          <button class="btn-ghost remove" title="Remove">×</button>
+        </div>
+        <div class="cart-item-qty">
+          <button class="qty-btn" data-act="dec">−</button>
+          <span style="min-width:28px; text-align:center; font-weight:600">${it.qty}</span>
+          <button class="qty-btn" data-act="inc">+</button>
+          <span style="margin-left:auto; font-weight:600">${ctx.fmt.rm(it.qty * it.price)}</span>
+        </div>
+        <div class="cart-item-patient">
+          <input placeholder="Patient name (optional)" value="${escapeAttr(it.patient)}">
+        </div>
+      </div>
+    `).join('');
+
+    body.innerHTML = `
+      ${itemsHtml}
       <div class="cart-totals">
         <div class="cart-row"><span>Subtotal</span><span>${ctx.fmt.rm(ctx.cart.subtotal())}</span></div>
         <div class="cart-row"><span>Discount</span>
@@ -173,11 +189,13 @@ export function mountCart(ctx) {
       </div>
     `;
 
+    // Wire up controls
     body.querySelectorAll('.cart-item').forEach(node => {
       const id = Number(node.dataset.id);
       node.querySelector('.remove').addEventListener('click', () => ctx.cart.remove(id));
       node.querySelectorAll('.qty-btn').forEach(b => b.addEventListener('click', () => {
         const it = ctx.cart.items.find(i => i.productId === id);
+        if (!it) return;
         ctx.cart.setQty(id, b.dataset.act === 'inc' ? it.qty + 1 : it.qty - 1);
       }));
       node.querySelector('.cart-item-patient input').addEventListener('input',
@@ -186,62 +204,69 @@ export function mountCart(ctx) {
 
     const discIn  = body.querySelector('#discountInput');
     const totalEl = body.querySelector('#totalOut');
-    const recalc  = () => {
-      const sub  = ctx.cart.subtotal();
-      const disc = Math.max(0, Number(discIn.value) || 0);
-      totalEl.textContent = ctx.fmt.rm(Math.max(0, sub - disc));
-    };
-    discIn.addEventListener('input', recalc);
+    if (discIn && totalEl) {
+      discIn.addEventListener('input', () => {
+        const sub  = ctx.cart.subtotal();
+        const disc = Math.max(0, Number(discIn.value) || 0);
+        totalEl.textContent = ctx.fmt.rm(Math.max(0, sub - disc));
+      });
+    }
 
-    body.querySelector('#docType').addEventListener('change', e => {
-      body.querySelector('#paymentBox').hidden = e.target.value !== 'receipt';
-    });
+    const docType = body.querySelector('#docType');
+    if (docType) {
+      docType.addEventListener('change', e => {
+        body.querySelector('#paymentBox').hidden = e.target.value !== 'receipt';
+      });
+    }
 
-    body.querySelector('#clearCart').addEventListener('click', () => {
-      if (confirm('Clear all items?')) ctx.cart.clear();
-    });
+    const clearBtn = body.querySelector('#clearCart');
+    if (clearBtn) {
+      clearBtn.addEventListener('click', () => {
+        if (confirm('Clear all items?')) ctx.cart.clear();
+      });
+    }
 
-    body.querySelector('#submitDoc').addEventListener('click', async (e) => {
-      const btn = e.currentTarget;
-      btn.disabled = true; btn.textContent = 'Saving…';
-      try {
-        const docType = body.querySelector('#docType').value;
-        const payment = body.querySelector('#payMethod')?.value || '';
-        const today   = new Date().toISOString().slice(0, 10);
-
-        // Pull selected clinic from catalog view if present
-        const sel = document.getElementById('clinicSelect');
-        const clinicId = sel ? Number(sel.value) || 0 : 0;
-        if (!clinicId) {
-          ctx.toast('Pick a clinic first (top of catalog).', 'error');
-          btn.disabled = false; btn.textContent = 'Create document';
-          return;
+    const submitBtn = body.querySelector('#submitDoc');
+    if (submitBtn) {
+      submitBtn.addEventListener('click', async () => {
+        submitBtn.disabled = true;
+        submitBtn.textContent = 'Saving…';
+        try {
+          const dt = body.querySelector('#docType').value;
+          const payment = body.querySelector('#payMethod')?.value || '';
+          const today = new Date().toISOString().slice(0, 10);
+          const sel = document.getElementById('clinicSelect');
+          const clinicId = sel ? Number(sel.value) || 0 : 0;
+          if (!clinicId) {
+            ctx.toast('Pick a clinic first (top of catalog).', 'error');
+            return;
+          }
+          const payload = {
+            doc_type:  dt,
+            clinic_id: clinicId,
+            doc_date:  today,
+            discount:  Math.max(0, Number(discIn.value) || 0),
+            payment_method: dt === 'receipt' ? payment : '',
+            paid_at:   dt === 'receipt' ? today : null,
+            notes:     '',
+            items: ctx.cart.items.map(i => ({
+              product_id: i.productId, qty: i.qty, patient_name: i.patient,
+            })),
+          };
+          const { api } = await import('../api.js');
+          const res = await api.post('/invoices', payload);
+          ctx.toast(`${dt === 'invoice' ? 'Invoice' : 'Receipt'} created`, 'success');
+          ctx.cart.clear();
+          drawer.hidden = true;
+          window.open(`/print.php?id=${res.id}`, '_blank', 'noopener');
+        } catch (err) {
+          ctx.toast(err.message || 'Failed to save', 'error');
+        } finally {
+          submitBtn.disabled = false;
+          submitBtn.textContent = 'Create document';
         }
-
-        const payload = {
-          doc_type:  docType,
-          clinic_id: clinicId,
-          doc_date:  today,
-          discount:  Math.max(0, Number(discIn.value) || 0),
-          payment_method: docType === 'receipt' ? payment : '',
-          paid_at:   docType === 'receipt' ? today : null,
-          notes:     '',
-          items: ctx.cart.items.map(i => ({
-            product_id: i.productId, qty: i.qty, patient_name: i.patient,
-          })),
-        };
-        const res = await api.post('/invoices', payload);
-        ctx.toast(`${docType === 'invoice' ? 'Invoice' : 'Receipt'} created`, 'success');
-        ctx.cart.clear();
-        drawer.hidden = true;
-        // Open print preview of the new doc
-        window.open(`/print.php?id=${res.id}`, '_blank', 'noopener');
-      } catch (err) {
-        ctx.toast(err.message || 'Failed to save', 'error');
-      } finally {
-        btn.disabled = false; btn.textContent = 'Create document';
-      }
-    });
+      });
+    }
   }
 }
 
