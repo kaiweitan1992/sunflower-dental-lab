@@ -52,13 +52,11 @@ final class Bootstrap
         }
 
         $secure = Config::bool('COOKIE_SECURE', false);
-        // Force session storage to a writable directory.
-        // App Platform containers have an ephemeral filesystem; /tmp is reliably writable.
-        $sessionDir = '/tmp/sessions';
-        if (!is_dir($sessionDir)) {
-            @mkdir($sessionDir, 0700, true);
-        }
-        session_save_path($sessionDir);
+
+        // Use a DB-backed session handler so sessions work across
+        // multiple App Platform containers (filesystem is per-container).
+        session_set_save_handler(new \Sunflower\Session\DbSessionHandler(), true);
+
         session_name(Config::get('SESSION_NAME', 'sfdl_sess'));
         session_set_cookie_params([
             'lifetime' => Config::int('SESSION_LIFETIME', 43200),
@@ -70,6 +68,7 @@ final class Bootstrap
         ]);
         ini_set('session.use_strict_mode', '1');
         ini_set('session.use_only_cookies', '1');
+        ini_set('session.gc_maxlifetime', (string) Config::int('SESSION_LIFETIME', 43200));
 
         session_start();
     }
