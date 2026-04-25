@@ -52,7 +52,13 @@ final class Bootstrap
         }
 
         $secure = Config::bool('COOKIE_SECURE', false);
-
+        // Force session storage to a writable directory.
+        // App Platform containers have an ephemeral filesystem; /tmp is reliably writable.
+        $sessionDir = '/tmp/sessions';
+        if (!is_dir($sessionDir)) {
+            @mkdir($sessionDir, 0700, true);
+        }
+        session_save_path($sessionDir);
         session_name(Config::get('SESSION_NAME', 'sfdl_sess'));
         session_set_cookie_params([
             'lifetime' => Config::int('SESSION_LIFETIME', 43200),
