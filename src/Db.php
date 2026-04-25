@@ -45,6 +45,7 @@ final class Db
         try {
             self::$pdo = new PDO($dsn, $user, $pass, $opts);
             self::$pdo->exec("SET time_zone = '+00:00'");
+            self::$pdo->exec("SET SESSION sql_mode = 'STRICT_TRANS_TABLES,NO_ZERO_DATE,NO_ZERO_IN_DATE,NO_ENGINE_SUBSTITUTION'");
         } catch (PDOException $e) {
             // Don't leak credentials in the message.
             throw new RuntimeException('Database connection failed.', 0, $e);
