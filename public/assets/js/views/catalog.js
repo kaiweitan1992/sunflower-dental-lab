@@ -19,9 +19,9 @@ export async function renderCatalog(el, ctx) {
     api.get('/products'),
     api.get('/clinics'),
   ]);
-  state.categories = cats.categories;
-  state.products   = prods.products;
-  state.clinics    = clins.clinics;
+  state.categories = cats.categories || [];
+  state.products   = prods.products  || [];
+  state.clinics    = clins.clinics   || [];
 
   el.innerHTML = `
     <div class="view-head">
