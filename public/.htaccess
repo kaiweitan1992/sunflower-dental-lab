@@ -1,0 +1,32 @@
+# Sunflower Dental Lab — Apache config
+# Works on DigitalOcean App Platform's PHP buildpack (Apache + mod_rewrite).
+
+<IfModule mod_rewrite.c>
+  RewriteEngine On
+
+  # /api/anything  ->  /api.php/anything
+  RewriteRule ^api/(.*)$ api.php/$1 [L,QSA]
+
+  # If the SPA shell needs deep linking later, uncomment:
+  # RewriteCond %{REQUEST_FILENAME} !-f
+  # RewriteCond %{REQUEST_FILENAME} !-d
+  # RewriteRule ^.*$ index.php [L]
+</IfModule>
+
+# Security headers
+<IfModule mod_headers.c>
+  Header always set X-Content-Type-Options "nosniff"
+  Header always set Referrer-Policy "strict-origin-when-cross-origin"
+  Header always set X-Frame-Options "SAMEORIGIN"
+  Header always set Permissions-Policy "geolocation=(), camera=(), microphone=()"
+  # Tweak the CSP if you add 3rd-party scripts.
+  Header always set Content-Security-Policy "default-src 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; script-src 'self'; connect-src 'self'; frame-ancestors 'self'; base-uri 'self'; form-action 'self'"
+</IfModule>
+
+# Block direct access to dotfiles (.env, .git, etc.) from the web.
+<FilesMatch "^\.">
+  Require all denied
+</FilesMatch>
+
+# UTF-8 by default
+AddDefaultCharset utf-8

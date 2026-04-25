@@ -1,0 +1,18 @@
+{
+  "name": "sunflower/dental-lab",
+  "description": "Open-source dental lab order & invoice manager (PHP + MySQL).",
+  "type": "project",
+  "license": "MIT",
+  "require": {
+    "php": "^8.2"
+  },
+  "autoload": {
+    "psr-4": {
+      "Sunflower\\": "src/"
+    }
+  },
+  "config": {
+    "sort-packages": true,
+    "optimize-autoloader": true
+  }
+}

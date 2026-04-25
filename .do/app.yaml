@@ -1,0 +1,63 @@
+# =====================================================
+# DigitalOcean App Platform spec — Sunflower Dental Lab
+# -----------------------------------------------------
+# This is a TEMPLATE. You can deploy entirely from the
+# DigitalOcean dashboard (described in DEPLOY.md) without
+# this file, but it's nice to keep as a reference and for
+# `doctl apps create --spec .do/app.yaml`.
+#
+# Replace YOUR_GITHUB_USER/REPO and the secret placeholders
+# before using.
+# =====================================================
+name: sunflower-dental-lab
+region: sgp                          # Singapore (closest to Malaysia)
+
+services:
+  - name: web
+    environment_slug: php             # PHP buildpack (defaults to latest 8.x)
+    instance_count: 1
+    instance_size_slug: apps-s-1vcpu-0.5gb    # ~$5/mo  (basic-xxs)
+    http_port: 8080
+    source_dir: /
+    github:
+      repo: YOUR_GITHUB_USER/sunflower-dental-lab
+      branch: main
+      deploy_on_push: true
+    health_check:
+      http_path: /login.php
+    routes:
+      - path: /
+
+    envs:
+      # --- Database (auto-injected from the linked MySQL cluster below) ---
+      - { key: DB_HOST, scope: RUN_TIME, value: "${db.HOSTNAME}" }
+      - { key: DB_PORT, scope: RUN_TIME, value: "${db.PORT}" }
+      - { key: DB_NAME, scope: RUN_TIME, value: "${db.DATABASE}" }
+      - { key: DB_USER, scope: RUN_TIME, value: "${db.USERNAME}" }
+      - { key: DB_PASS, scope: RUN_TIME, value: "${db.PASSWORD}", type: SECRET }
+      - { key: DB_SSL,  scope: RUN_TIME, value: "1" }
+
+      # --- App settings ---
+      - { key: APP_ENV,         scope: RUN_TIME, value: "production" }
+      - { key: APP_DEBUG,       scope: RUN_TIME, value: "0" }
+      - { key: APP_TZ,          scope: RUN_TIME, value: "Asia/Kuala_Lumpur" }
+      - { key: COOKIE_SECURE,   scope: RUN_TIME, value: "1" }
+      - { key: SESSION_NAME,    scope: RUN_TIME, value: "sfdl_sess" }
+      - { key: SESSION_LIFETIME, scope: RUN_TIME, value: "43200" }
+
+      # --- Business defaults shown on invoices/receipts ---
+      - { key: BUSINESS_NAME,    scope: RUN_TIME, value: "Sunflower Malaysia Dental Lab" }
+      - { key: BUSINESS_PHONE,   scope: RUN_TIME, value: "011-56739132" }
+      - { key: BUSINESS_ADDRESS, scope: RUN_TIME, value: "" }
+      - { key: INVOICE_PREFIX,   scope: RUN_TIME, value: "SF" }
+
+databases:
+  - name: db                        # referenced above as ${db.*}
+    engine: MYSQL
+    version: "8"
+    production: true                # set to false to use the cheaper dev DB
+    cluster_name: sunflower-mysql
+    db_name: sunflower
+    db_user: sunflower
+    size: db-s-1vcpu-1gb            # ~$15/mo  (smallest production tier)
+    num_nodes: 1
