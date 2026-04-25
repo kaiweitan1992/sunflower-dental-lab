@@ -39,7 +39,12 @@ final class Db
         if ($ssl) {
             // DO Managed MySQL ships a CA bundle. The buildpack auto-trusts
             // most public CAs; this enables TLS without strict CN check.
-            $opts[PDO::MYSQL_ATTR_SSL_VERIFY_SERVER_CERT] = false;
+            // PHP 8.5 introduced the Pdo\Mysql namespaced version. Use whichever exists.
+            if (defined('Pdo\\Mysql::ATTR_SSL_VERIFY_SERVER_CERT')) {
+                $opts[\Pdo\Mysql::ATTR_SSL_VERIFY_SERVER_CERT] = false;
+            } else {
+                $opts[PDO::MYSQL_ATTR_SSL_VERIFY_SERVER_CERT] = false;
+            }
         }
 
         try {
